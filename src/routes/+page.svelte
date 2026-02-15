@@ -1,7 +1,24 @@
-<script>
+<script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import Instructions from '$lib/components/Instructions.svelte';
+  import GameBoard from '$lib/components/GameBoard.svelte';
+  import ScorePanel from '$lib/components/ScorePanel.svelte';
+  import StatsPanel from '$lib/components/StatsPanel.svelte';
 
-  const sizeOptions = [10, 20, 30];
+  type Score = {
+    moves: number;
+    seconds: number;
+  };
+
+  type ScoresBySize = {
+    10: Score[];
+    20: Score[];
+    30: Score[];
+  };
+
+  type BoardSize = 10 | 20 | 30;
+
+  const sizeOptions: BoardSize[] = [10, 20, 30];
   const colors = [
     '#f7c945',
     '#f28c8c',
@@ -13,24 +30,24 @@
     '#9ad65b'
   ];
 
-  let size = 30;
+  let size: BoardSize = 30;
   let tileSize = 18;
   let boardGap = 5;
   let boardPadding = 20;
   let grid = createGrid();
-  let region = new Set();
+  let region: Set<number> = new Set();
   let started = false;
   let moves = 0;
   let seconds = 0;
-  let timerId = null;
+  let timerId: ReturnType<typeof setInterval> | null = null;
   let won = false;
-  let regionColor = null;
+  let regionColor: number | null = null;
   let scores = defaultScores();
   let scoresLoading = true;
   let scoresError = '';
-  let pageEl;
-  let headerEl;
-  let scoresEl;
+  let pageEl: HTMLDivElement | undefined;
+  let headerEl: HTMLElement | null = null;
+  let scoresEl: HTMLElement | null = null;
 
   onMount(() => {
     loadScores(size);
@@ -44,18 +61,18 @@
     stopTimer();
   });
 
-  function defaultScores() {
+  function defaultScores(): ScoresBySize {
     return { 10: [], 20: [], 30: [] };
   }
 
-  async function loadScores(boardSize) {
+  async function loadScores(boardSize: BoardSize) {
     scoresLoading = true;
     scoresError = '';
     try {
       const response = await fetch(`/api/scores?size=${boardSize}`);
       if (!response.ok) throw new Error('Failed to load scores');
-      const data = await response.json();
-      scores = { ...scores, [String(boardSize)]: data.scores ?? [] };
+      const data: { scores?: Score[] } = await response.json();
+      scores = { ...scores, [boardSize]: data.scores ?? [] };
     } catch (error) {
       scoresError = 'Could not load scores.';
     } finally {
@@ -63,7 +80,7 @@
     }
   }
 
-  async function recordScore(value) {
+  async function recordScore(value: number) {
     try {
       const response = await fetch('/api/scores', {
         method: 'POST',
@@ -71,8 +88,8 @@
         body: JSON.stringify({ size, moves: value, seconds })
       });
       if (!response.ok) throw new Error('Failed to save score');
-      const data = await response.json();
-      scores = { ...scores, [String(size)]: data.scores ?? [] };
+      const data: { scores?: Score[] } = await response.json();
+      scores = { ...scores, [size]: data.scores ?? [] };
     } catch (error) {
       scoresError = 'Could not save score.';
     }
@@ -111,21 +128,21 @@
     tileSize = Math.max(6, nextSize);
   }
 
-  function createGrid() {
+  function createGrid(): number[][] {
     return Array.from({ length: size }, () =>
       Array.from({ length: size }, () => Math.floor(Math.random() * colors.length))
     );
   }
 
-  function indexOf(row, col) {
+  function indexOf(row: number, col: number) {
     return row * size + col;
   }
 
-  function inBounds(row, col) {
+  function inBounds(row: number, col: number) {
     return row >= 0 && row < size && col >= 0 && col < size;
   }
 
-  function neighbors(row, col) {
+  function neighbors(row: number, col: number) {
     return [
       [row - 1, col],
       [row + 1, col],
@@ -134,8 +151,8 @@
     ].filter(([r, c]) => inBounds(r, c));
   }
 
-  function floodFill(startRow, startCol, targetColor) {
-    const filled = new Set();
+  function floodFill(startRow: number, startCol: number, targetColor: number): Set<number> {
+    const filled = new Set<number>();
     const stack = [[startRow, startCol]];
 
     while (stack.length) {
@@ -152,14 +169,14 @@
     return filled;
   }
 
-  function isAdjacentToRegion(row, col) {
+  function isAdjacentToRegion(row: number, col: number) {
     for (const [r, c] of neighbors(row, col)) {
       if (region.has(indexOf(r, c))) return true;
     }
     return false;
   }
 
-  function recolorRegion(newColor) {
+  function recolorRegion(newColor: number) {
     for (const id of region) {
       const row = Math.floor(id / size);
       const col = id % size;
@@ -167,8 +184,8 @@
     }
   }
 
-  function expandRegion(newColor) {
-    const expanded = new Set(region);
+  function expandRegion(newColor: number) {
+    const expanded = new Set<number>(region);
     const stack = Array.from(region, (id) => [Math.floor(id / size), id % size]);
 
     while (stack.length) {
@@ -195,7 +212,7 @@
     return true;
   }
 
-  function handleClick(row, col) {
+  function handleClick(row: number, col: number) {
     if (won) return;
 
     if (!started) {
@@ -227,7 +244,7 @@
   function resetGame() {
     stopTimer();
     grid = createGrid();
-    region = new Set();
+    region = new Set<number>();
     started = false;
     moves = 0;
     seconds = 0;
@@ -248,13 +265,13 @@
     timerId = null;
   }
 
-  function formatTime(value) {
+  function formatTime(value: number) {
     const minutes = Math.floor(value / 60);
     const remaining = value % 60;
     return `${minutes}:${String(remaining).padStart(2, '0')}`;
   }
 
-  function setSize(nextSize) {
+  function setSize(nextSize: BoardSize) {
     if (size === nextSize) return;
     size = nextSize;
     resetGame();
@@ -270,93 +287,37 @@
 <div class="page" bind:this={pageEl}>
   <section class="layout">
     <div class="left">
-      <header class="hero" bind:this={headerEl}>
-        <p class="eyebrow">Chromaflow</p>
-        <h1>Paint the board with the fewest moves.</h1>
-        <p class="subtitle">
-          Start on any tile, then click neighboring tiles to flood the highlighted region with their
-          color. Make all tiles match.
-        </p>
-      </header>
+      <Instructions bind:element={headerEl} />
 
-      <div class="board-wrap">
-        <section
-          class="board"
-          style={`--tile-size: ${tileSize}px; --board-size: ${size}; --tile-gap: ${boardGap}px; --board-padding: ${boardPadding}px; --tile-radius: ${size === 10 ? 8 : 4}px;`}
-          aria-live="polite"
-        >
-          {#each grid as row, rowIndex}
-            {#each row as colorIndex, colIndex}
-              {@const id = indexOf(rowIndex, colIndex)}
-              <button
-                class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
-                style={`background: ${colors[colorIndex]}`}
-                on:click={() => handleClick(rowIndex, colIndex)}
-                aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
-              ></button>
-            {/each}
-          {/each}
-        </section>
-
-        {#if won}
-          <div class="win">
-            <h2>Perfect flood!</h2>
-            <p>You filled the board in {moves} moves.</p>
-            <button class="reset" on:click={resetGame}>Play Again</button>
-          </div>
-        {/if}
-      </div>
+      <GameBoard
+        {grid}
+        {colors}
+        {size}
+        {tileSize}
+        {boardGap}
+        {boardPadding}
+        {region}
+        {started}
+        {won}
+        {moves}
+        {indexOf}
+        {isAdjacentToRegion}
+        {handleClick}
+        {resetGame}
+      />
     </div>
 
-    <aside class="right">
-      <div class="panel">
-        <div>
-          <span class="label">Moves</span>
-          <span class="value">{moves}</span>
-        </div>
-        <div>
-          <span class="label">Time</span>
-          <span class="value">{formatTime(seconds)}</span>
-        </div>
-        <div>
-          <span class="label">Board Size</span>
-          <div class="sizes">
-            {#each sizeOptions as option}
-              <button
-                class={`size ${size === option ? 'size--active' : ''}`}
-                on:click={() => setSize(option)}
-              >
-                {option}x{option}
-              </button>
-            {/each}
-          </div>
-        </div>
-        <button class="reset" on:click={resetGame}>New Board</button>
-      </div>
+    <aside class="right" bind:this={scoresEl}>
+      <StatsPanel
+        {moves}
+        time={formatTime(seconds)}
+        {size}
+        {sizeOptions}
+        {setSize}
+        {resetGame}
+      />
 
-      <section class="scores" bind:this={scoresEl}>
-        <div class="scores__header">
-          <h3>Best Runs</h3>
-          <span class="label">{size}x{size}</span>
-        </div>
-        <div class="scores__list">
-          {#if scoresLoading}
-            <p class="score__empty">Loading scores...</p>
-          {:else if scoresError}
-            <p class="score__empty">{scoresError}</p>
-          {:else if scores[String(size)]?.length}
-            {#each scores[String(size)] as score, index}
-              <div class="score">
-                <span class="score__rank">#{index + 1}</span>
-                <span class="score__value">{score.moves} moves</span>
-                <span class="score__time">{formatTime(score.seconds)}</span>
-              </div>
-            {/each}
-          {:else}
-            <p class="score__empty">No wins yet. Claim the first spot!</p>
-          {/if}
-        </div>
-      </section>
+      <ScorePanel {size} {scoresLoading} {scoresError} {scores} {formatTime} />
     </aside>
   </section>
 </div>
@@ -401,224 +362,7 @@
     align-content: start;
   }
 
-  .hero {
-    display: grid;
-    gap: 8px;
-  }
-
-  .eyebrow {
-    font-family: 'Fredoka', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-    font-size: 12px;
-    color: #3d3a5b;
-    margin: 0 0 6px;
-  }
-
-  h1 {
-    font-family: 'Fredoka', sans-serif;
-    font-size: clamp(28px, 4vw, 44px);
-    margin: 0 0 8px;
-  }
-
-  .subtitle {
-    margin: 0;
-    max-width: 560px;
-    line-height: 1.5;
-    color: #4b4961;
-  }
-
-  .panel {
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 18px;
-    padding: 18px;
-    display: grid;
-    gap: 12px;
-    box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
-  }
-
-  .panel > div {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .label {
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #68657c;
-  }
-
-  .value {
-    font-size: 24px;
-    font-weight: 600;
-  }
-
-  .reset {
-    border: none;
-    background: linear-gradient(135deg, #2c2a45, #4b3f88);
-    color: #fff;
-    border-radius: 999px;
-    padding: 10px 16px;
-    font-family: 'Fredoka', sans-serif;
-    font-size: 14px;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .reset:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 16px rgba(45, 39, 86, 0.25);
-  }
-
-  .sizes {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-
-  .size {
-    border: 1px solid rgba(30, 29, 40, 0.2);
-    background: transparent;
-    padding: 6px 12px;
-    border-radius: 999px;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.2s ease, border-color 0.2s ease;
-  }
-
-  .size--active {
-    background: rgba(30, 29, 40, 0.1);
-    border-color: rgba(30, 29, 40, 0.4);
-    font-weight: 600;
-  }
-
-  .board-wrap {
-    position: relative;
-    justify-self: start;
-  }
-
-  .board {
-    display: grid;
-    grid-template-columns: repeat(var(--board-size), var(--tile-size));
-    gap: var(--tile-gap);
-    background: rgba(255, 255, 255, 0.7);
-    padding: var(--board-padding);
-    border-radius: 18px;
-    box-shadow: 0 20px 40px rgba(30, 29, 40, 0.16);
-    max-width: 1160px;
-    margin: 0;
-  }
-
-  .tile {
-    width: var(--tile-size);
-    height: var(--tile-size);
-    border: none;
-    border-radius: var(--tile-radius, 4px);
-    cursor: pointer;
-    position: relative;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .tile--active {
-    box-shadow: 0 0 0 3px rgba(30, 29, 40, 0.45);
-    transform: scale(1.02);
-  }
-
-  .tile--hint {
-    box-shadow: 0 0 0 2px rgba(30, 29, 40, 0.2);
-  }
-
-  .tile:focus-visible {
-    outline: 2px solid #1e1d28;
-    outline-offset: 2px;
-  }
-
-  .win {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    text-align: center;
-    background: rgba(255, 255, 255, 0.92);
-    border-radius: 18px;
-    padding: 24px;
-    box-shadow: 0 14px 32px rgba(30, 29, 40, 0.18);
-    backdrop-filter: blur(6px);
-  }
-
-  .win h2 {
-    font-family: 'Fredoka', sans-serif;
-    margin: 0 0 6px;
-  }
-
-  .win p {
-    margin: 0 0 12px;
-    color: #4b4961;
-  }
-
-  .scores {
-    background: rgba(255, 255, 255, 0.9);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
-  }
-
-  .scores__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 12px;
-  }
-
-  .scores__header h3 {
-    margin: 0;
-    font-family: 'Fredoka', sans-serif;
-    font-size: 20px;
-  }
-
-  .scores__list {
-    display: grid;
-    gap: 8px;
-  }
-
-  .score {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: rgba(30, 29, 40, 0.06);
-    gap: 10px;
-  }
-
-  .score__rank {
-    font-weight: 600;
-  }
-
-  .score__value {
-    color: #4b4961;
-  }
-
-  .score__time {
-    font-weight: 600;
-    color: #2c2a45;
-  }
-
-  .score__empty {
-    margin: 0;
-    color: #4b4961;
-  }
-
   @media (max-width: 900px) {
-    .board {
-      gap: 3px;
-      padding: 12px;
-    }
-
     .layout {
       grid-template-columns: 1fr;
     }

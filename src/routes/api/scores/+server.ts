@@ -1,9 +1,10 @@
 import { json } from '@sveltejs/kit';
-import { addScore, getTopScores } from '$lib/server/db.js';
+import type { RequestHandler } from './$types';
+import { addScore, getTopScores } from '$lib/server/db';
 
 const validSizes = new Set([10, 20, 30]);
 
-export async function GET({ url }) {
+export const GET: RequestHandler = async ({ url }) => {
   const size = Number(url.searchParams.get('size'));
   if (!validSizes.has(size)) {
     return json({ error: 'Invalid size' }, { status: 400 });
@@ -11,9 +12,9 @@ export async function GET({ url }) {
 
   const scores = await getTopScores(size, 10);
   return json({ size, scores });
-}
+};
 
-export async function POST({ request }) {
+export const POST: RequestHandler = async ({ request }) => {
   const payload = await request.json();
   const size = Number(payload?.size);
   const moves = Number(payload?.moves);
@@ -32,4 +33,4 @@ export async function POST({ request }) {
   await addScore(size, moves, seconds, 10);
   const scores = await getTopScores(size, 10);
   return json({ size, scores });
-}
+};
