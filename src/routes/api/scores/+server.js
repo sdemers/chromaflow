@@ -17,12 +17,19 @@ export async function POST({ request }) {
   const payload = await request.json();
   const size = Number(payload?.size);
   const moves = Number(payload?.moves);
+  const seconds = Number(payload?.seconds ?? 0);
 
-  if (!validSizes.has(size) || !Number.isFinite(moves) || moves < 1) {
+  if (
+    !validSizes.has(size) ||
+    !Number.isFinite(moves) ||
+    moves < 1 ||
+    !Number.isFinite(seconds) ||
+    seconds < 0
+  ) {
     return json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  await addScore(size, moves, 10);
+  await addScore(size, moves, seconds, 10);
   const scores = await getTopScores(size, 10);
   return json({ size, scores });
 }

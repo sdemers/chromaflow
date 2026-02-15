@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
 
   const sizeOptions = [10, 20, 30];
   const colors = [
@@ -21,6 +21,8 @@
   let region = new Set();
   let started = false;
   let moves = 0;
+  let seconds = 0;
+  let timerId = null;
   let won = false;
   let regionColor = null;
   let scores = defaultScores();
@@ -36,6 +38,10 @@
     const onResize = () => updateTileSize();
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
+  });
+
+  onDestroy(() => {
+    stopTimer();
   });
 
   function defaultScores() {
@@ -62,7 +68,7 @@
       const response = await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ size, moves: value })
+        body: JSON.stringify({ size, moves: value, seconds })
       });
       if (!response.ok) throw new Error('Failed to save score');
       const data = await response.json();
@@ -194,6 +200,7 @@
 
     if (!started) {
       started = true;
+      startTimer();
       region = floodFill(row, col, grid[row][col]);
       regionColor = grid[row][col];
       return;
@@ -212,17 +219,39 @@
     moves += 1;
     if (checkWin()) {
       won = true;
+      stopTimer();
       recordScore(moves);
     }
   }
 
   function resetGame() {
+    stopTimer();
     grid = createGrid();
     region = new Set();
     started = false;
     moves = 0;
+    seconds = 0;
     won = false;
     regionColor = null;
+  }
+
+  function startTimer() {
+    if (timerId) return;
+    timerId = setInterval(() => {
+      seconds += 1;
+    }, 1000);
+  }
+
+  function stopTimer() {
+    if (!timerId) return;
+    clearInterval(timerId);
+    timerId = null;
+  }
+
+  function formatTime(value) {
+    const minutes = Math.floor(value / 60);
+    const remaining = value % 60;
+    return `${minutes}:${String(remaining).padStart(2, '0')}`;
   }
 
   function setSize(nextSize) {
@@ -254,8 +283,8 @@
         <span class="value">{moves}</span>
       </div>
       <div>
-        <span class="label">Region</span>
-        <span class="value">{region.size}</span>
+        <span class="label">Time</span>
+        <span class="value">{formatTime(seconds)}</span>
       </div>
       <div>
         <span class="label">Board Size</span>
@@ -317,7 +346,8 @@
           {#each scores[String(size)] as score, index}
             <div class="score">
               <span class="score__rank">#{index + 1}</span>
-              <span class="score__value">{score} moves</span>
+              <span class="score__value">{score.moves} moves</span>
+              <span class="score__time">{formatTime(score.seconds)}</span>
             </div>
           {/each}
         {:else}
@@ -386,6 +416,13 @@
     display: grid;
     gap: 12px;
     box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
+  }
+
+  .panel > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
   }
 
   .label {
@@ -544,6 +581,7 @@
     padding: 8px 12px;
     border-radius: 12px;
     background: rgba(30, 29, 40, 0.06);
+    gap: 10px;
   }
 
   .score__rank {
@@ -552,6 +590,11 @@
 
   .score__value {
     color: #4b4961;
+  }
+
+  .score__time {
+    font-weight: 600;
+    color: #2c2a45;
   }
 
   .score__empty {
