@@ -2,6 +2,7 @@
   type Score = {
     moves: number;
     seconds: number;
+    name: string;
   };
 
   export let size: 10 | 20 | 30;
@@ -25,6 +26,7 @@
       {#each scores[size] as score, index}
         <div class="score">
           <span class="score__rank">#{index + 1}</span>
+          <span class="score__name">{score.name || 'AAA'}</span>
           <span class="score__value">{score.moves} moves</span>
           <span class="score__time">{formatTime(score.seconds)}</span>
         </div>
@@ -48,6 +50,7 @@
     border-radius: 18px;
     padding: 20px;
     box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
+    min-width: 280px;
   }
 
   .scores__header {
@@ -89,6 +92,14 @@
   .score__time {
     font-weight: 600;
     color: #2c2a45;
+  }
+
+  .score__name {
+    min-width: 3ch;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: #1e1d28;
+    text-align: right;
   }
 
   .score__empty {

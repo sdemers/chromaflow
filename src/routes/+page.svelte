@@ -17,6 +17,7 @@
   type Score = {
     moves: number;
     seconds: number;
+    name: string;
   };
 
   type ScoresBySize = {
@@ -54,6 +55,9 @@
   let scores = $state(defaultScores());
   let scoresLoading = $state(true);
   let scoresError = $state('');
+  let showNamePrompt = $state(false);
+  let pendingScore = $state<{ moves: number; seconds: number } | null>(null);
+  let playerName = $state('');
   let pageEl: HTMLDivElement | undefined;
   let headerEl: HTMLElement | null = $state(null);
   let scoresEl: HTMLElement | null = null;
@@ -96,12 +100,27 @@
     }
   }
 
-  async function recordScore(value: number) {
+  function normalizeName(value: string) {
+    return value.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase();
+  }
+
+  function isHighScore(value: number, time: number) {
+    const list = scores[size] ?? [];
+    if (list.length < 10) return true;
+    const ranked = [...list]
+      .slice()
+      .sort((a, b) => (a.moves - b.moves) || (a.seconds - b.seconds));
+    const last = ranked[ranked.length - 1];
+    if (!last) return true;
+    return value < last.moves || (value === last.moves && time < last.seconds);
+  }
+
+  async function recordScore(value: number, time: number, name: string) {
     try {
       const response = await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ size, moves: value, seconds })
+        body: JSON.stringify({ size, moves: value, seconds: time, name })
       });
       if (!response.ok) throw new Error('Failed to save score');
       const data: { scores?: Score[] } = await response.json();
@@ -109,6 +128,21 @@
     } catch (error) {
       scoresError = 'Could not save score.';
     }
+  }
+
+  function handleNameInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    playerName = normalizeName(target.value);
+  }
+
+  function submitName() {
+    if (!pendingScore) return;
+    const finalName = normalizeName(playerName || 'AAA');
+    const { moves, seconds } = pendingScore;
+    recordScore(moves, seconds, finalName);
+    showNamePrompt = false;
+    pendingScore = null;
+    playerName = '';
   }
 
   function updateTileSize() {
@@ -169,7 +203,15 @@
     if (checkWin(grid, size)) {
       won = true;
       stopTimer();
-      recordScore(moves);
+      const finalMoves = moves;
+      const finalSeconds = seconds;
+      if (isHighScore(finalMoves, finalSeconds)) {
+        pendingScore = { moves: finalMoves, seconds: finalSeconds };
+        showNamePrompt = true;
+        playerName = '';
+      } else {
+        recordScore(finalMoves, finalSeconds, 'AAA');
+      }
     }
   }
 
@@ -182,6 +224,9 @@
     seconds = 0;
     won = false;
     regionColor = null;
+    showNamePrompt = false;
+    pendingScore = null;
+    playerName = '';
   }
 
   function startTimer() {
@@ -247,6 +292,25 @@
         {resetGame}
       />
 
+      {#if showNamePrompt}
+        <div class="name-card">
+          <div>
+            <p class="name-label">New High Score</p>
+            <p class="name-title">Enter 3-letter name</p>
+          </div>
+          <div class="name-row">
+            <input
+              class="name-input"
+              maxlength="3"
+              placeholder="AAA"
+              value={playerName}
+              on:input={handleNameInput}
+            />
+            <button class="name-save" on:click={submitName}>Save</button>
+          </div>
+        </div>
+      {/if}
+
       <ScorePanel {size} {scoresLoading} {scoresError} {scores} {formatTime} />
     </aside>
   </section>
@@ -290,6 +354,63 @@
     display: grid;
     gap: 20px;
     align-content: start;
+  }
+
+  .name-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 18px;
+    padding: 18px;
+    display: grid;
+    gap: 12px;
+    box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
+  }
+
+  .name-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .name-label {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #68657c;
+  }
+
+  .name-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .name-input {
+    flex: 1;
+    border: 1px solid rgba(30, 29, 40, 0.2);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font-size: 16px;
+    font-family: 'Fredoka', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+
+  .name-save {
+    border: none;
+    background: #1e1d28;
+    color: #fff;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .name-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 16px rgba(30, 29, 40, 0.2);
   }
 
   @media (max-width: 900px) {

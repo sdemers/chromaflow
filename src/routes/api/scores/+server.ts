@@ -19,18 +19,21 @@ export const POST: RequestHandler = async ({ request }) => {
   const size = Number(payload?.size);
   const moves = Number(payload?.moves);
   const seconds = Number(payload?.seconds ?? 0);
+  const rawName = String(payload?.name ?? payload?.player_name ?? '');
+  const name = rawName.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase();
 
   if (
     !validSizes.has(size) ||
     !Number.isFinite(moves) ||
     moves < 1 ||
     !Number.isFinite(seconds) ||
-    seconds < 0
+    seconds < 0 ||
+    name.length === 0
   ) {
     return json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  await addScore(size, moves, seconds, 10);
+  await addScore(size, moves, seconds, name, 10);
   const scores = await getTopScores(size, 10);
   return json({ size, scores });
 };
