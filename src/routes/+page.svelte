@@ -275,6 +275,10 @@
         {started}
         {won}
         {moves}
+        {showNamePrompt}
+        {playerName}
+        {handleNameInput}
+        {submitName}
         isAdjacentToRegion={(row, col) => isAdjacentToRegion(region, size, row, col)}
         {handleClick}
         {resetGame}
@@ -291,136 +295,7 @@
         {resetGame}
       />
 
-      {#if showNamePrompt}
-        <div class="name-card">
-          <div>
-            <p class="name-label">New High Score</p>
-            <p class="name-title">Enter 3-letter name</p>
-          </div>
-          <div class="name-row">
-            <input
-              class="name-input"
-              maxlength="3"
-              placeholder="AAA"
-              value={playerName}
-              on:input={handleNameInput}
-            />
-            <button class="name-save" on:click={submitName}>Save</button>
-          </div>
-        </div>
-      {/if}
-
       <ScorePanel {size} {scoresLoading} {scoresError} {scores} {formatTime} />
     </aside>
   </section>
 </div>
-
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Space+Grotesk:wght@400;600&display=swap');
-
-  :global(body) {
-    margin: 0;
-    font-family: 'Space Grotesk', system-ui, sans-serif;
-    background: radial-gradient(circle at top, #fff7e8 0%, #f2f1ff 45%, #e8f7f1 100%);
-    color: #1e1d28;
-    min-height: 100vh;
-    overflow: hidden;
-  }
-
-  .page {
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 32px 24px 64px;
-    display: grid;
-    gap: 28px;
-    height: 100vh;
-    box-sizing: border-box;
-  }
-
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 20px;
-    align-items: start;
-  }
-
-  .left {
-    display: grid;
-    gap: 16px;
-  }
-
-  .right {
-    display: grid;
-    gap: 20px;
-    align-content: start;
-  }
-
-  .name-card {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 18px;
-    padding: 18px;
-    display: grid;
-    gap: 12px;
-    box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
-  }
-
-  .name-title {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .name-label {
-    margin: 0;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #68657c;
-  }
-
-  .name-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .name-input {
-    flex: 1;
-    border: 1px solid rgba(30, 29, 40, 0.2);
-    border-radius: 12px;
-    padding: 10px 12px;
-    font-size: 16px;
-    font-family: 'Fredoka', sans-serif;
-    text-transform: uppercase;
-    letter-spacing: 0.2em;
-  }
-
-  .name-save {
-    border: none;
-    background: #1e1d28;
-    color: #fff;
-    border-radius: 12px;
-    padding: 10px 16px;
-    font-family: 'Fredoka', sans-serif;
-    font-size: 14px;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .name-save:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 16px rgba(30, 29, 40, 0.2);
-  }
-
-  @media (max-width: 900px) {
-    .layout {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 600px) {
-    .page {
-      padding: 24px 16px 48px;
-    }
-  }
-</style>

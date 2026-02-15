@@ -13,6 +13,10 @@
   export let started: boolean;
   export let won: boolean;
   export let moves: number;
+  export let showNamePrompt: boolean;
+  export let playerName: string;
+  export let handleNameInput: (event: Event) => void;
+  export let submitName: () => void;
 
   export let handleClick: (row: number, col: number) => void;
   export let isAdjacentToRegion: (row: number, col: number) => boolean;
@@ -42,97 +46,25 @@
     <div class="win">
       <h2>Perfect flood!</h2>
       <p>You filled the board in {moves} moves.</p>
+      {#if showNamePrompt}
+        <div class="name-card name-card--inline">
+          <div>
+            <p class="name-label">New High Score</p>
+            <p class="name-title">Enter 3-letter name</p>
+          </div>
+          <div class="name-row">
+            <input
+              class="name-input"
+              maxlength="3"
+              placeholder="AAA"
+              value={playerName}
+              on:input={handleNameInput}
+            />
+            <button class="name-save" on:click={submitName}>Save</button>
+          </div>
+        </div>
+      {/if}
       <button class="reset" on:click={resetGame}>Play Again</button>
     </div>
   {/if}
 </div>
-
-<style>
-  .board-wrap {
-    position: relative;
-    justify-self: start;
-  }
-
-  .board {
-    display: grid;
-    grid-template-columns: repeat(var(--board-size), var(--tile-size));
-    gap: var(--tile-gap);
-    background: rgba(255, 255, 255, 0.7);
-    padding: var(--board-padding);
-    border-radius: 18px;
-    box-shadow: 0 20px 40px rgba(30, 29, 40, 0.16);
-    max-width: 1160px;
-    margin: 0;
-  }
-
-  .tile {
-    width: var(--tile-size);
-    height: var(--tile-size);
-    border: none;
-    border-radius: var(--tile-radius, 4px);
-    cursor: pointer;
-    position: relative;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .tile--active {
-    box-shadow: 0 0 0 3px rgba(30, 29, 40, 0.45);
-    transform: scale(1.02);
-  }
-
-  .tile--hint {
-    box-shadow: 0 0 0 2px rgba(30, 29, 40, 0.2);
-  }
-
-  .tile:focus-visible {
-    outline: 2px solid #1e1d28;
-    outline-offset: 2px;
-  }
-
-  .win {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    text-align: center;
-    background: rgba(255, 255, 255, 0.92);
-    border-radius: 18px;
-    padding: 24px;
-    box-shadow: 0 14px 32px rgba(30, 29, 40, 0.18);
-    backdrop-filter: blur(6px);
-  }
-
-  .win h2 {
-    font-family: 'Fredoka', sans-serif;
-    margin: 0 0 6px;
-  }
-
-  .win p {
-    margin: 0 0 12px;
-    color: #4b4961;
-  }
-
-  .reset {
-    border: none;
-    background: linear-gradient(135deg, #2c2a45, #4b3f88);
-    color: #fff;
-    border-radius: 999px;
-    padding: 10px 16px;
-    font-family: 'Fredoka', sans-serif;
-    font-size: 14px;
-    cursor: pointer;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .reset:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 16px rgba(45, 39, 86, 0.25);
-  }
-
-  @media (max-width: 900px) {
-    .board {
-      gap: 3px;
-      padding: 12px;
-    }
-  }
-</style>
