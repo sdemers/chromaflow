@@ -20,7 +20,7 @@ export function neighbors(row: number, col: number, size: number): [number, numb
     [row + 1, col],
     [row, col - 1],
     [row, col + 1]
-  ].filter(([r, c]) => inBounds(r, c, size));
+  ].filter(([r, c]) => inBounds(r, c, size)) as [number, number][];
 }
 
 export function floodFill(

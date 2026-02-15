@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { browser } from '$app/environment';
   import Instructions from '$lib/components/Instructions.svelte';
   import GameBoard from '$lib/components/GameBoard.svelte';
   import ScorePanel from '$lib/components/ScorePanel.svelte';
@@ -39,35 +39,42 @@
     '#9ad65b'
   ];
 
-  let size: BoardSize = 30;
-  let tileSize = 18;
-  let boardGap = 5;
-  let boardPadding = 20;
-  let grid = createGrid(size, colors.length);
-  let region: Set<number> = new Set();
-  let started = false;
-  let moves = 0;
-  let seconds = 0;
+  let size: BoardSize = $state(30);
+  let tileSize = $state(18);
+  let boardGap = $state(5);
+  let boardPadding = $state(20);
+  let grid = $state(createGrid(size, colors.length));
+  let region: Set<number> = $state(new Set());
+  let started = $state(false);
+  let moves = $state(0);
+  let seconds = $state(0);
   let timerId: ReturnType<typeof setInterval> | null = null;
-  let won = false;
-  let regionColor: number | null = null;
-  let scores = defaultScores();
-  let scoresLoading = true;
-  let scoresError = '';
+  let won = $state(false);
+  let regionColor: number | null = $state(null);
+  let scores = $state(defaultScores());
+  let scoresLoading = $state(true);
+  let scoresError = $state('');
   let pageEl: HTMLDivElement | undefined;
-  let headerEl: HTMLElement | null = null;
+  let headerEl: HTMLElement | null = $state(null);
   let scoresEl: HTMLElement | null = null;
+  let lastLoadedSize: BoardSize | null = null;
 
-  onMount(() => {
-    loadScores(size);
+  $effect(() => {
+    if (!browser) return;
+
+    if (lastLoadedSize !== size) {
+      lastLoadedSize = size;
+      loadScores(size);
+    }
+
     updateTileSize();
     const onResize = () => updateTileSize();
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  });
 
-  onDestroy(() => {
-    stopTimer();
+    return () => {
+      window.removeEventListener('resize', onResize);
+      stopTimer();
+    };
   });
 
   function defaultScores(): ScoresBySize {
@@ -200,8 +207,6 @@
     if (size === nextSize) return;
     size = nextSize;
     resetGame();
-    loadScores(nextSize);
-    updateTileSize();
   }
 </script>
 
