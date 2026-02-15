@@ -47,11 +47,15 @@
       <h2>Perfect flood!</h2>
       <p>You filled the board in {moves} moves.</p>
       {#if showNamePrompt}
-        <div class="name-card name-card--inline">
-          <div>
-            <p class="name-label">New High Score</p>
-            <p class="name-title">Enter 3-letter name</p>
+        <div class="name-card name-card--inline highscore-panel">
+          <div class="highscore-badge">New High Score</div>
+          <div class="highscore-header">
+            <p class="highscore-title">Legendary run!</p>
+            <span class="highscore-value">{moves} moves</span>
           </div>
+          <p class="highscore-subtitle">
+            You set a new record. Enter your initials to claim the spot.
+          </p>
           <div class="name-row">
             <input
               class="name-input"
@@ -62,6 +66,7 @@
             />
             <button class="name-save" on:click={submitName}>Save</button>
           </div>
+          <p class="highscore-footer">Your name will appear on the leaderboard.</p>
         </div>
       {/if}
       <button class="reset" on:click={resetGame}>Play Again</button>
