@@ -5,11 +5,15 @@
     name: string;
   };
 
-  export let size: 10 | 20 | 30;
-  export let scoresLoading: boolean;
-  export let scoresError: string;
-  export let scores: Record<10 | 20 | 30, Score[]>;
-  export let formatTime: (value: number) => string;
+  type Props = {
+    size: 10 | 20 | 30;
+    scoresLoading: boolean;
+    scoresError: string;
+    scores: Record<10 | 20 | 30, Score[]>;
+    formatTime: (value: number) => string;
+  };
+
+  let { size, scoresLoading, scoresError, scores, formatTime }: Props = $props();
 </script>
 
 <section class="scores">

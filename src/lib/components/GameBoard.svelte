@@ -3,24 +3,45 @@
 
   type Grid = number[][];
 
-  export let grid: Grid;
-  export let colors: string[];
-  export let size: 10 | 20 | 30;
-  export let tileSize: number;
-  export let boardGap: number;
-  export let boardPadding: number;
-  export let region: Set<number>;
-  export let started: boolean;
-  export let won: boolean;
-  export let moves: number;
-  export let showNamePrompt: boolean;
-  export let playerName: string;
-  export let handleNameInput: (event: Event) => void;
-  export let submitName: () => void;
+  type Props = {
+    grid: Grid;
+    colors: string[];
+    size: 10 | 20 | 30;
+    tileSize: number;
+    boardGap: number;
+    boardPadding: number;
+    region: Set<number>;
+    started: boolean;
+    won: boolean;
+    moves: number;
+    showNamePrompt: boolean;
+    playerName: string;
+    handleNameInput: (event: Event) => void;
+    submitName: () => void;
+    handleClick: (row: number, col: number) => void;
+    isAdjacentToRegion: (row: number, col: number) => boolean;
+    resetGame: () => void;
+  };
 
-  export let handleClick: (row: number, col: number) => void;
-  export let isAdjacentToRegion: (row: number, col: number) => boolean;
-  export let resetGame: () => void;
+  let {
+    grid,
+    colors,
+    size,
+    tileSize,
+    boardGap,
+    boardPadding,
+    region,
+    started,
+    won,
+    moves,
+    showNamePrompt,
+    playerName,
+    handleNameInput,
+    submitName,
+    handleClick,
+    isAdjacentToRegion,
+    resetGame
+  }: Props = $props();
 </script>
 
 <div class="board-wrap">
@@ -35,7 +56,7 @@
         <button
           class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
           style={`background: ${colors[colorIndex]}`}
-          on:click={() => handleClick(rowIndex, colIndex)}
+          onclick={() => handleClick(rowIndex, colIndex)}
           aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
         ></button>
       {/each}
@@ -62,14 +83,14 @@
               maxlength="3"
               placeholder="AAA"
               value={playerName}
-              on:input={handleNameInput}
+              oninput={handleNameInput}
             />
-            <button class="name-save" on:click={submitName}>Save</button>
+            <button class="name-save" onclick={submitName}>Save</button>
           </div>
           <p class="highscore-footer">Your name will appear on the leaderboard.</p>
         </div>
       {/if}
-      <button class="reset" on:click={resetGame}>Play Again</button>
+      <button class="reset" onclick={resetGame}>Play Again</button>
     </div>
   {/if}
 </div>
