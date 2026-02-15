@@ -275,7 +275,6 @@
         {started}
         {won}
         {moves}
-        indexOf={(row, col) => indexOf(row, col, size)}
         isAdjacentToRegion={(row, col) => isAdjacentToRegion(region, size, row, col)}
         {handleClick}
         {resetGame}

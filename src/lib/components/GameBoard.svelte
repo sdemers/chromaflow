@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { indexOf } from '$lib/game/logic';
+
   type Grid = number[][];
 
   export let grid: Grid;
@@ -12,9 +14,8 @@
   export let won: boolean;
   export let moves: number;
 
-  export let indexOf: (row: number, col: number) => number;
-  export let isAdjacentToRegion: (row: number, col: number) => boolean;
   export let handleClick: (row: number, col: number) => void;
+  export let isAdjacentToRegion: (row: number, col: number) => boolean;
   export let resetGame: () => void;
 </script>
 
@@ -26,7 +27,7 @@
   >
     {#each grid as row, rowIndex}
       {#each row as colorIndex, colIndex}
-        {@const id = indexOf(rowIndex, colIndex)}
+        {@const id = indexOf(rowIndex, colIndex, size)}
         <button
           class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
           style={`background: ${colors[colorIndex]}`}
