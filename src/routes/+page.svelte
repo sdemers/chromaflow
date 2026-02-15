@@ -4,6 +4,15 @@
   import GameBoard from '$lib/components/GameBoard.svelte';
   import ScorePanel from '$lib/components/ScorePanel.svelte';
   import StatsPanel from '$lib/components/StatsPanel.svelte';
+  import {
+    checkWin,
+    createGrid,
+    expandRegion,
+    floodFill,
+    indexOf,
+    isAdjacentToRegion,
+    recolorRegion
+  } from '$lib/game/logic';
 
   type Score = {
     moves: number;
@@ -34,7 +43,7 @@
   let tileSize = 18;
   let boardGap = 5;
   let boardPadding = 20;
-  let grid = createGrid();
+  let grid = createGrid(size, colors.length);
   let region: Set<number> = new Set();
   let started = false;
   let moves = 0;
@@ -128,113 +137,29 @@
     tileSize = Math.max(6, nextSize);
   }
 
-  function createGrid(): number[][] {
-    return Array.from({ length: size }, () =>
-      Array.from({ length: size }, () => Math.floor(Math.random() * colors.length))
-    );
-  }
-
-  function indexOf(row: number, col: number) {
-    return row * size + col;
-  }
-
-  function inBounds(row: number, col: number) {
-    return row >= 0 && row < size && col >= 0 && col < size;
-  }
-
-  function neighbors(row: number, col: number) {
-    return [
-      [row - 1, col],
-      [row + 1, col],
-      [row, col - 1],
-      [row, col + 1]
-    ].filter(([r, c]) => inBounds(r, c));
-  }
-
-  function floodFill(startRow: number, startCol: number, targetColor: number): Set<number> {
-    const filled = new Set<number>();
-    const stack = [[startRow, startCol]];
-
-    while (stack.length) {
-      const [row, col] = stack.pop();
-      const id = indexOf(row, col);
-      if (filled.has(id)) continue;
-      if (grid[row][col] !== targetColor) continue;
-      filled.add(id);
-      for (const [r, c] of neighbors(row, col)) {
-        if (!filled.has(indexOf(r, c))) stack.push([r, c]);
-      }
-    }
-
-    return filled;
-  }
-
-  function isAdjacentToRegion(row: number, col: number) {
-    for (const [r, c] of neighbors(row, col)) {
-      if (region.has(indexOf(r, c))) return true;
-    }
-    return false;
-  }
-
-  function recolorRegion(newColor: number) {
-    for (const id of region) {
-      const row = Math.floor(id / size);
-      const col = id % size;
-      grid[row][col] = newColor;
-    }
-  }
-
-  function expandRegion(newColor: number) {
-    const expanded = new Set<number>(region);
-    const stack = Array.from(region, (id) => [Math.floor(id / size), id % size]);
-
-    while (stack.length) {
-      const [row, col] = stack.pop();
-      for (const [r, c] of neighbors(row, col)) {
-        const id = indexOf(r, c);
-        if (expanded.has(id)) continue;
-        if (grid[r][c] !== newColor) continue;
-        expanded.add(id);
-        stack.push([r, c]);
-      }
-    }
-
-    region = expanded;
-  }
-
-  function checkWin() {
-    const firstColor = grid[0][0];
-    for (let row = 0; row < size; row += 1) {
-      for (let col = 0; col < size; col += 1) {
-        if (grid[row][col] !== firstColor) return false;
-      }
-    }
-    return true;
-  }
-
   function handleClick(row: number, col: number) {
     if (won) return;
 
     if (!started) {
       started = true;
       startTimer();
-      region = floodFill(row, col, grid[row][col]);
+      region = floodFill(grid, size, row, col, grid[row][col]);
       regionColor = grid[row][col];
       return;
     }
 
-    const id = indexOf(row, col);
+    const id = indexOf(row, col, size);
     if (region.has(id)) return;
-    if (!isAdjacentToRegion(row, col)) return;
+    if (!isAdjacentToRegion(region, size, row, col)) return;
 
     const targetColor = grid[row][col];
     if (targetColor === regionColor) return;
 
-    recolorRegion(targetColor);
-    expandRegion(targetColor);
+    recolorRegion(grid, size, region, targetColor);
+    region = expandRegion(grid, size, region, targetColor);
     regionColor = targetColor;
     moves += 1;
-    if (checkWin()) {
+    if (checkWin(grid, size)) {
       won = true;
       stopTimer();
       recordScore(moves);
@@ -243,7 +168,7 @@
 
   function resetGame() {
     stopTimer();
-    grid = createGrid();
+    grid = createGrid(size, colors.length);
     region = new Set<number>();
     started = false;
     moves = 0;
@@ -300,8 +225,8 @@
         {started}
         {won}
         {moves}
-        {indexOf}
-        {isAdjacentToRegion}
+        indexOf={(row, col) => indexOf(row, col, size)}
+        isAdjacentToRegion={(row, col) => isAdjacentToRegion(region, size, row, col)}
         {handleClick}
         {resetGame}
       />
