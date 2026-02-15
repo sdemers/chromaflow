@@ -268,93 +268,96 @@
 </svelte:head>
 
 <div class="page" bind:this={pageEl}>
-  <header class="hero" bind:this={headerEl}>
-    <div>
-      <p class="eyebrow">Chromaflow</p>
-      <h1>Paint the board with the fewest moves.</h1>
-      <p class="subtitle">
-        Start on any tile, then click neighboring tiles to flood the highlighted region with their
-        color. Make all tiles match.
-      </p>
-    </div>
-    <div class="panel">
-      <div>
-        <span class="label">Moves</span>
-        <span class="value">{moves}</span>
-      </div>
-      <div>
-        <span class="label">Time</span>
-        <span class="value">{formatTime(seconds)}</span>
-      </div>
-      <div>
-        <span class="label">Board Size</span>
-        <div class="sizes">
-          {#each sizeOptions as option}
-            <button
-              class={`size ${size === option ? 'size--active' : ''}`}
-              on:click={() => setSize(option)}
-            >
-              {option}x{option}
-            </button>
-          {/each}
-        </div>
-      </div>
-      <button class="reset" on:click={resetGame}>New Board</button>
-    </div>
-  </header>
+  <section class="layout">
+    <div class="left">
+      <header class="hero" bind:this={headerEl}>
+        <p class="eyebrow">Chromaflow</p>
+        <h1>Paint the board with the fewest moves.</h1>
+        <p class="subtitle">
+          Start on any tile, then click neighboring tiles to flood the highlighted region with their
+          color. Make all tiles match.
+        </p>
+      </header>
 
-  <section class="play">
-    <div class="board-wrap">
-      <section
-        class="board"
-        style={`--tile-size: ${tileSize}px; --board-size: ${size}; --tile-gap: ${boardGap}px; --board-padding: ${boardPadding}px;`}
-        aria-live="polite"
-      >
-        {#each grid as row, rowIndex}
-          {#each row as colorIndex, colIndex}
-            {@const id = indexOf(rowIndex, colIndex)}
-            <button
-              class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
-              style={`background: ${colors[colorIndex]}`}
-              on:click={() => handleClick(rowIndex, colIndex)}
-              aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
-            ></button>
+      <div class="board-wrap">
+        <section
+          class="board"
+          style={`--tile-size: ${tileSize}px; --board-size: ${size}; --tile-gap: ${boardGap}px; --board-padding: ${boardPadding}px; --tile-radius: ${size === 10 ? 8 : 4}px;`}
+          aria-live="polite"
+        >
+          {#each grid as row, rowIndex}
+            {#each row as colorIndex, colIndex}
+              {@const id = indexOf(rowIndex, colIndex)}
+              <button
+                class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
+                style={`background: ${colors[colorIndex]}`}
+                on:click={() => handleClick(rowIndex, colIndex)}
+                aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
+              ></button>
+            {/each}
           {/each}
-        {/each}
-      </section>
+        </section>
 
-      {#if won}
-        <div class="win">
-          <h2>Perfect flood!</h2>
-          <p>You filled the board in {moves} moves.</p>
-          <button class="reset" on:click={resetGame}>Play Again</button>
-        </div>
-      {/if}
-    </div>
-
-    <section class="scores" bind:this={scoresEl}>
-      <div class="scores__header">
-        <h3>Best Runs</h3>
-        <span class="label">{size}x{size}</span>
-      </div>
-      <div class="scores__list">
-        {#if scoresLoading}
-          <p class="score__empty">Loading scores...</p>
-        {:else if scoresError}
-          <p class="score__empty">{scoresError}</p>
-        {:else if scores[String(size)]?.length}
-          {#each scores[String(size)] as score, index}
-            <div class="score">
-              <span class="score__rank">#{index + 1}</span>
-              <span class="score__value">{score.moves} moves</span>
-              <span class="score__time">{formatTime(score.seconds)}</span>
-            </div>
-          {/each}
-        {:else}
-          <p class="score__empty">No wins yet. Claim the first spot!</p>
+        {#if won}
+          <div class="win">
+            <h2>Perfect flood!</h2>
+            <p>You filled the board in {moves} moves.</p>
+            <button class="reset" on:click={resetGame}>Play Again</button>
+          </div>
         {/if}
       </div>
-    </section>
+    </div>
+
+    <aside class="right">
+      <div class="panel">
+        <div>
+          <span class="label">Moves</span>
+          <span class="value">{moves}</span>
+        </div>
+        <div>
+          <span class="label">Time</span>
+          <span class="value">{formatTime(seconds)}</span>
+        </div>
+        <div>
+          <span class="label">Board Size</span>
+          <div class="sizes">
+            {#each sizeOptions as option}
+              <button
+                class={`size ${size === option ? 'size--active' : ''}`}
+                on:click={() => setSize(option)}
+              >
+                {option}x{option}
+              </button>
+            {/each}
+          </div>
+        </div>
+        <button class="reset" on:click={resetGame}>New Board</button>
+      </div>
+
+      <section class="scores" bind:this={scoresEl}>
+        <div class="scores__header">
+          <h3>Best Runs</h3>
+          <span class="label">{size}x{size}</span>
+        </div>
+        <div class="scores__list">
+          {#if scoresLoading}
+            <p class="score__empty">Loading scores...</p>
+          {:else if scoresError}
+            <p class="score__empty">{scoresError}</p>
+          {:else if scores[String(size)]?.length}
+            {#each scores[String(size)] as score, index}
+              <div class="score">
+                <span class="score__rank">#{index + 1}</span>
+                <span class="score__value">{score.moves} moves</span>
+                <span class="score__time">{formatTime(score.seconds)}</span>
+              </div>
+            {/each}
+          {:else}
+            <p class="score__empty">No wins yet. Claim the first spot!</p>
+          {/if}
+        </div>
+      </section>
+    </aside>
   </section>
 </div>
 
@@ -380,11 +383,27 @@
     box-sizing: border-box;
   }
 
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .left {
+    display: grid;
+    gap: 16px;
+  }
+
+  .right {
+    display: grid;
+    gap: 20px;
+    align-content: start;
+  }
+
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 280px;
-    gap: 24px;
-    align-items: center;
+    gap: 8px;
   }
 
   .eyebrow {
@@ -482,14 +501,6 @@
     justify-self: start;
   }
 
-  .play {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 260px;
-    gap: 20px;
-    align-items: start;
-    margin-top: -8px;
-  }
-
   .board {
     display: grid;
     grid-template-columns: repeat(var(--board-size), var(--tile-size));
@@ -506,7 +517,7 @@
     width: var(--tile-size);
     height: var(--tile-size);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--tile-radius, 4px);
     cursor: pointer;
     position: relative;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -603,16 +614,12 @@
   }
 
   @media (max-width: 900px) {
-    .hero {
-      grid-template-columns: 1fr;
-    }
-
     .board {
       gap: 3px;
       padding: 12px;
     }
 
-    .play {
+    .layout {
       grid-template-columns: 1fr;
     }
   }
