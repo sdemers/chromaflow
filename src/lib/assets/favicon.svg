@@ -5,7 +5,7 @@
       <stop offset="1" stop-color="#6aa5ff" />
     </linearGradient>
   </defs>
-  <rect width="128" height="128" rx="28" fill="#1e1d28" />
+  <rect width="128" height="128" rx="28" fill="#1e1d28" opacity="0.35" />
   <rect x="18" y="18" width="92" height="92" rx="20" fill="#fff7e8" />
   <g transform="translate(28 28)" fill="url(#tileGradient)">
     <rect width="24" height="24" rx="6" />
