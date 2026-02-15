@@ -1,5 +1,7 @@
 <script>
-  const size = 30;
+  import { onMount } from 'svelte';
+
+  const sizeOptions = [10, 20, 30];
   const colors = [
     '#f7c945',
     '#f28c8c',
@@ -11,12 +13,97 @@
     '#9ad65b'
   ];
 
+  let size = 30;
+  let tileSize = 18;
+  let boardGap = 5;
+  let boardPadding = 20;
   let grid = createGrid();
   let region = new Set();
   let started = false;
   let moves = 0;
   let won = false;
   let regionColor = null;
+  let scores = defaultScores();
+  let scoresLoading = true;
+  let scoresError = '';
+  let pageEl;
+  let headerEl;
+  let scoresEl;
+
+  onMount(() => {
+    loadScores(size);
+    updateTileSize();
+    const onResize = () => updateTileSize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  });
+
+  function defaultScores() {
+    return { 10: [], 20: [], 30: [] };
+  }
+
+  async function loadScores(boardSize) {
+    scoresLoading = true;
+    scoresError = '';
+    try {
+      const response = await fetch(`/api/scores?size=${boardSize}`);
+      if (!response.ok) throw new Error('Failed to load scores');
+      const data = await response.json();
+      scores = { ...scores, [String(boardSize)]: data.scores ?? [] };
+    } catch (error) {
+      scoresError = 'Could not load scores.';
+    } finally {
+      scoresLoading = false;
+    }
+  }
+
+  async function recordScore(value) {
+    try {
+      const response = await fetch('/api/scores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ size, moves: value })
+      });
+      if (!response.ok) throw new Error('Failed to save score');
+      const data = await response.json();
+      scores = { ...scores, [String(size)]: data.scores ?? [] };
+    } catch (error) {
+      scoresError = 'Could not save score.';
+    }
+  }
+
+  function updateTileSize() {
+    const paddingLeft = pageEl ? parseFloat(getComputedStyle(pageEl).paddingLeft) : 24;
+    const paddingRight = pageEl ? parseFloat(getComputedStyle(pageEl).paddingRight) : 24;
+    const paddingTop = pageEl ? parseFloat(getComputedStyle(pageEl).paddingTop) : 32;
+    const paddingBottom = pageEl ? parseFloat(getComputedStyle(pageEl).paddingBottom) : 32;
+    const pageGap = 28;
+    const playGap = 20;
+
+    const headerHeight = headerEl?.getBoundingClientRect().height ?? 0;
+    const scoresRect = scoresEl?.getBoundingClientRect();
+    const scoresWidth = scoresRect?.width ?? 0;
+    const scoresHeight = scoresRect?.height ?? 0;
+    const stacked = window.innerWidth <= 900;
+
+    boardGap = stacked ? 3 : 5;
+    boardPadding = stacked ? 12 : 20;
+
+    const availableWidth =
+      window.innerWidth - paddingLeft - paddingRight - (stacked ? 0 : scoresWidth + playGap);
+    const availableHeight =
+      window.innerHeight -
+      paddingTop -
+      paddingBottom -
+      headerHeight -
+      pageGap -
+      (stacked ? scoresHeight + playGap : 0);
+
+    const usableWidth = availableWidth - boardPadding * 2 - boardGap * (size - 1);
+    const usableHeight = availableHeight - boardPadding * 2 - boardGap * (size - 1);
+    const nextSize = Math.floor(Math.min(usableWidth / size, usableHeight / size));
+    tileSize = Math.max(6, nextSize);
+  }
 
   function createGrid() {
     return Array.from({ length: size }, () =>
@@ -123,7 +210,10 @@
     expandRegion(targetColor);
     regionColor = targetColor;
     moves += 1;
-    won = checkWin();
+    if (checkWin()) {
+      won = true;
+      recordScore(moves);
+    }
   }
 
   function resetGame() {
@@ -134,14 +224,22 @@
     won = false;
     regionColor = null;
   }
+
+  function setSize(nextSize) {
+    if (size === nextSize) return;
+    size = nextSize;
+    resetGame();
+    loadScores(nextSize);
+    updateTileSize();
+  }
 </script>
 
 <svelte:head>
   <title>Chromaflow Grid</title>
 </svelte:head>
 
-<div class="page">
-  <header class="hero">
+<div class="page" bind:this={pageEl}>
+  <header class="hero" bind:this={headerEl}>
     <div>
       <p class="eyebrow">Chromaflow</p>
       <h1>Paint the board with the fewest moves.</h1>
@@ -159,31 +257,75 @@
         <span class="label">Region</span>
         <span class="value">{region.size}</span>
       </div>
+      <div>
+        <span class="label">Board Size</span>
+        <div class="sizes">
+          {#each sizeOptions as option}
+            <button
+              class={`size ${size === option ? 'size--active' : ''}`}
+              on:click={() => setSize(option)}
+            >
+              {option}x{option}
+            </button>
+          {/each}
+        </div>
+      </div>
       <button class="reset" on:click={resetGame}>New Board</button>
     </div>
   </header>
 
-  <section class="board" aria-live="polite">
-    {#each grid as row, rowIndex}
-      {#each row as colorIndex, colIndex}
-        {@const id = indexOf(rowIndex, colIndex)}
-        <button
-          class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
-          style={`background: ${colors[colorIndex]}`}
-          on:click={() => handleClick(rowIndex, colIndex)}
-          aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
-        />
-      {/each}
-    {/each}
-  </section>
+  <section class="play">
+    <div class="board-wrap">
+      <section
+        class="board"
+        style={`--tile-size: ${tileSize}px; --board-size: ${size}; --tile-gap: ${boardGap}px; --board-padding: ${boardPadding}px;`}
+        aria-live="polite"
+      >
+        {#each grid as row, rowIndex}
+          {#each row as colorIndex, colIndex}
+            {@const id = indexOf(rowIndex, colIndex)}
+            <button
+              class={`tile ${region.has(id) ? 'tile--active' : ''} ${started && !region.has(id) && isAdjacentToRegion(rowIndex, colIndex) ? 'tile--hint' : ''}`}
+              style={`background: ${colors[colorIndex]}`}
+              on:click={() => handleClick(rowIndex, colIndex)}
+              aria-label={`Tile ${rowIndex + 1}-${colIndex + 1}`}
+            ></button>
+          {/each}
+        {/each}
+      </section>
 
-  {#if won}
-    <div class="win">
-      <h2>Perfect flood!</h2>
-      <p>You filled the board in {moves} moves.</p>
-      <button class="reset" on:click={resetGame}>Play Again</button>
+      {#if won}
+        <div class="win">
+          <h2>Perfect flood!</h2>
+          <p>You filled the board in {moves} moves.</p>
+          <button class="reset" on:click={resetGame}>Play Again</button>
+        </div>
+      {/if}
     </div>
-  {/if}
+
+    <section class="scores" bind:this={scoresEl}>
+      <div class="scores__header">
+        <h3>Best Runs</h3>
+        <span class="label">{size}x{size}</span>
+      </div>
+      <div class="scores__list">
+        {#if scoresLoading}
+          <p class="score__empty">Loading scores...</p>
+        {:else if scoresError}
+          <p class="score__empty">{scoresError}</p>
+        {:else if scores[String(size)]?.length}
+          {#each scores[String(size)] as score, index}
+            <div class="score">
+              <span class="score__rank">#{index + 1}</span>
+              <span class="score__value">{score} moves</span>
+            </div>
+          {/each}
+        {:else}
+          <p class="score__empty">No wins yet. Claim the first spot!</p>
+        {/if}
+      </div>
+    </section>
+  </section>
 </div>
 
 <style>
@@ -195,6 +337,7 @@
     background: radial-gradient(circle at top, #fff7e8 0%, #f2f1ff 45%, #e8f7f1 100%);
     color: #1e1d28;
     min-height: 100vh;
+    overflow: hidden;
   }
 
   .page {
@@ -203,6 +346,8 @@
     padding: 32px 24px 64px;
     display: grid;
     gap: 28px;
+    height: 100vh;
+    box-sizing: border-box;
   }
 
   .hero {
@@ -272,24 +417,59 @@
     box-shadow: 0 10px 16px rgba(45, 39, 86, 0.25);
   }
 
-  .board {
-    --tile-size: 20px;
+  .sizes {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .size {
+    border: 1px solid rgba(30, 29, 40, 0.2);
+    background: transparent;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  .size--active {
+    background: rgba(30, 29, 40, 0.1);
+    border-color: rgba(30, 29, 40, 0.4);
+    font-weight: 600;
+  }
+
+  .board-wrap {
+    position: relative;
+    justify-self: start;
+  }
+
+  .play {
     display: grid;
-    grid-template-columns: repeat(30, var(--tile-size));
-    gap: 5px;
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 20px;
+    align-items: start;
+    margin-top: -8px;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(var(--board-size), var(--tile-size));
+    gap: var(--tile-gap);
     background: rgba(255, 255, 255, 0.7);
-    padding: 20px;
+    padding: var(--board-padding);
     border-radius: 18px;
     box-shadow: 0 20px 40px rgba(30, 29, 40, 0.16);
     max-width: 1160px;
-    margin: 0 auto;
+    margin: 0;
   }
 
   .tile {
     width: var(--tile-size);
     height: var(--tile-size);
     border: none;
-    border-radius: 8px;
+    border-radius: 4px;
     cursor: pointer;
     position: relative;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -310,11 +490,16 @@
   }
 
   .win {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 18px;
-    padding: 20px;
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
     text-align: center;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 18px;
+    padding: 24px;
     box-shadow: 0 14px 32px rgba(30, 29, 40, 0.18);
+    backdrop-filter: blur(6px);
   }
 
   .win h2 {
@@ -327,6 +512,53 @@
     color: #4b4961;
   }
 
+  .scores {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 16px 28px rgba(30, 29, 40, 0.12);
+  }
+
+  .scores__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 12px;
+  }
+
+  .scores__header h3 {
+    margin: 0;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 20px;
+  }
+
+  .scores__list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .score {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: rgba(30, 29, 40, 0.06);
+  }
+
+  .score__rank {
+    font-weight: 600;
+  }
+
+  .score__value {
+    color: #4b4961;
+  }
+
+  .score__empty {
+    margin: 0;
+    color: #4b4961;
+  }
+
   @media (max-width: 900px) {
     .hero {
       grid-template-columns: 1fr;
@@ -335,6 +567,10 @@
     .board {
       gap: 3px;
       padding: 12px;
+    }
+
+    .play {
+      grid-template-columns: 1fr;
     }
   }
 
