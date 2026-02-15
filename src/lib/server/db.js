@@ -1,51 +1,44 @@
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
+import { createClient } from '@libsql/client';
+import { TURSO_AUTH_TOKEN, TURSO_DATABASE_URL } from '$env/static/private';
 
-const dataDir = path.resolve('data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const client = createClient({
+  url: TURSO_DATABASE_URL,
+  authToken: TURSO_AUTH_TOKEN
+});
 
-const dbPath = path.join(dataDir, 'chromaflow.db');
-const db = new Database(dbPath);
-
-db.pragma('journal_mode = WAL');
-
-db.exec(`
+await client.execute(`
   CREATE TABLE IF NOT EXISTS scores (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     board_size INTEGER NOT NULL,
     moves INTEGER NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
+  )
 `);
 
-const insertScore = db.prepare(
-  'INSERT INTO scores (board_size, moves) VALUES (?, ?)'
-);
-
-const selectTopScores = db.prepare(
-  'SELECT moves FROM scores WHERE board_size = ? ORDER BY moves ASC, id ASC LIMIT ?'
-);
-
-const deleteExcessScores = db.prepare(
-  `
-    DELETE FROM scores
-    WHERE id IN (
-      SELECT id FROM scores
-      WHERE board_size = ?
-      ORDER BY moves ASC, id ASC
-      LIMIT -1 OFFSET ?
-    )
-  `
-);
-
-export function getTopScores(boardSize, limit = 10) {
-  return selectTopScores.all(boardSize, limit).map((row) => row.moves);
+export async function getTopScores(boardSize, limit = 10) {
+  const result = await client.execute({
+    sql: 'SELECT moves FROM scores WHERE board_size = ? ORDER BY moves ASC, id ASC LIMIT ?',
+    args: [boardSize, limit]
+  });
+  return result.rows.map((row) => Number(row.moves));
 }
 
-export function addScore(boardSize, moves) {
-  insertScore.run(boardSize, moves);
-  deleteExcessScores.run(boardSize, 10);
+export async function addScore(boardSize, moves, limit = 10) {
+  await client.execute({
+    sql: 'INSERT INTO scores (board_size, moves) VALUES (?, ?)',
+    args: [boardSize, moves]
+  });
+
+  await client.execute({
+    sql: `
+      DELETE FROM scores
+      WHERE id IN (
+        SELECT id FROM scores
+        WHERE board_size = ?
+        ORDER BY moves ASC, id ASC
+        LIMIT -1 OFFSET ?
+      )
+    `,
+    args: [boardSize, limit]
+  });
 }

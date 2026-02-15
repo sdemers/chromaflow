@@ -3,13 +3,13 @@ import { addScore, getTopScores } from '$lib/server/db.js';
 
 const validSizes = new Set([10, 20, 30]);
 
-export function GET({ url }) {
+export async function GET({ url }) {
   const size = Number(url.searchParams.get('size'));
   if (!validSizes.has(size)) {
     return json({ error: 'Invalid size' }, { status: 400 });
   }
 
-  const scores = getTopScores(size, 10);
+  const scores = await getTopScores(size, 10);
   return json({ size, scores });
 }
 
@@ -22,7 +22,7 @@ export async function POST({ request }) {
     return json({ error: 'Invalid payload' }, { status: 400 });
   }
 
-  addScore(size, moves);
-  const scores = getTopScores(size, 10);
+  await addScore(size, moves, 10);
+  const scores = await getTopScores(size, 10);
   return json({ size, scores });
 }
