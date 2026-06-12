@@ -1,19 +1,23 @@
-name: Cherry Pick On Comment
+name: Cherry Pick PR
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to cherry-pick'
+        required: true
+      target_branch:
+        description: 'Target branch'
+        required: true
+
 jobs:
   cherry-pick:
-    name: Cherry Pick
-    if: github.event.issue.pull_request != '' && contains(github.event.comment.body, '/cherry-pick')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
-      - name: Checkout the latest code
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - uses: artyrian/cherry-pick@v1.0.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0 # otherwise, you will fail to push refs to dest repo
-      - name: Automatic Cherry Pick
-        uses: vendoo/gha-cherry-pick@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          pr_number: ${{ github.event.inputs.pr_number }}
+          target_branch: ${{ github.event.inputs.target_branch }}
