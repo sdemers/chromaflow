@@ -52,4 +52,4 @@ jobs:
         with:
           pr_number: ${{ steps.inputs.outputs.pr_number }}
           target_branch: ${{ steps.inputs.outputs.target_branch }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.PR_SECRET }}
