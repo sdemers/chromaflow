@@ -17,6 +17,8 @@ Chromaflow is a SvelteKit color-flood puzzle on a 10x10, 20x20, or 30x30 grid. S
 - Top-10 leaderboard per board size (Turso/libSQL)
 - Responsive layout tuned for full-screen play
 
+## This is a test
+
 ## Tech Stack
 
 - SvelteKit + TypeScript
