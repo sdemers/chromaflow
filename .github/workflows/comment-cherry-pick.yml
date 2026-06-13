@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      - uses: sdemers/cherry-pick@v1.1.1
+      - uses: sdemers/cherry-pick@v1.1.2
         with:
           pr_number: ${{ steps.inputs.outputs.pr_number }}
           target_branch: ${{ steps.inputs.outputs.target_branch }}
