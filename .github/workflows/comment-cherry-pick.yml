@@ -46,7 +46,7 @@ jobs:
             echo "target_branch=${{ github.event.inputs.target_branch }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: sdemers/cherry-pick@v1.1.2
         with:
