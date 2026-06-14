@@ -32,18 +32,20 @@ jobs:
           COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
           if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            # Safely parse branch name from the comment body via env var (not direct interpolation)
-            BRANCH=$(echo "$COMMENT_BODY" | head -n1 | awk '{print $2}')
-            # Validate it looks like a valid git ref
-            if ! git check-ref-format --branch "$BRANCH" 2>/dev/null; then
-              echo "Invalid branch name: $BRANCH"
-              exit 1
-            fi
+            # Parse all branch names from the comment body (first line, everything after the first word)
+            BRANCHES=$(echo "$COMMENT_BODY" | head -n1 | cut -d' ' -f2-)
+            # Validate each branch
+            for BRANCH in $BRANCHES; do
+              if ! git check-ref-format --branch "$BRANCH" 2>/dev/null; then
+                echo "Invalid branch name: $BRANCH"
+                exit 1
+              fi
+            done
             echo "pr_number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
-            echo "target_branch=$BRANCH" >> "$GITHUB_OUTPUT"
+            echo "target_branches=$BRANCHES" >> "$GITHUB_OUTPUT"
           else
             echo "pr_number=${{ github.event.inputs.pr_number }}" >> "$GITHUB_OUTPUT"
-            echo "target_branch=${{ github.event.inputs.target_branch }}" >> "$GITHUB_OUTPUT"
+            echo "target_branches=${{ github.event.inputs.target_branch }}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v6
@@ -51,5 +53,5 @@ jobs:
       - uses: sdemers/cherry-pick@v2.1.0
         with:
           pr_number: ${{ steps.inputs.outputs.pr_number }}
-          target_branch: ${{ steps.inputs.outputs.target_branch }}
+          target_branch: ${{ steps.inputs.outputs.target_branches }}
           github_token: ${{ secrets.PR_SECRET }}
