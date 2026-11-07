@@ -39,6 +39,7 @@ jobs:
             let worktree;
             let env;
             let sha;
+            let targetBranch;
 
             const commentBody = context.payload.comment.body;
             core.info(`Received comment body (JSON): ${JSON.stringify(commentBody)}`);
@@ -84,6 +85,8 @@ jobs:
 
               failure = 'Could not read the open pull request.';
               const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
+              targetBranch = pr.head.ref;
+              core.info(`Target branch: ${targetBranch}`);
               failure = 'The pull request must still be open.';
               if (pr.state !== 'open') throw new Error('Pull request is closed.');
               failure = 'Fork pull requests are not supported with this repository GITHUB_TOKEN. Cherry-pick manually in the fork.';
@@ -176,7 +179,9 @@ jobs:
               }
             }
 
-            message = `${message || 'Cherry-pick did not complete. Check the workflow log before retrying.'}\n\n[Workflow run](${runUrl})`;
+            message = `${message || 'Cherry-pick did not complete. Check the workflow log before retrying.'}` +
+              (targetBranch ? `\n\n**Target branch:** \`${targetBranch}\`` : '') +
+              `\n\n[Workflow run](${runUrl})`;
 
             try {
               const { data: comment } = await github.rest.issues.createComment({
