@@ -1,4 +1,4 @@
-name: Cherry-pick commit from comment
+name: Cherry-Pick Commit Into PR
 
 on:
   issue_comment:
