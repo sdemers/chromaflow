@@ -46,10 +46,12 @@ jobs:
                 throw new Error('Repository write, maintain, or admin permission is required.');
               }
 
-              failure = 'Use `/cherry-pick <full 40-character commit SHA>` with exactly one SHA and no other text.';
-              const match = /^\/cherry-pick[ \t]+([a-fA-F0-9]{40})[ \t\r\n]*$/.exec(context.payload.comment.body);
+              failure = 'Use `/cherry-pick <commit SHA>` (minimum 7 characters) with exactly one SHA and no other text.';
+                            const match = /^\/cherry-pick[ \t]+([a-fA-F0-9]{7,40})[ \t\r\n]*$/.exec(context.payload.comment.body);
               if (!match) throw new Error('Invalid command.');
-              const sha = match[1].toLowerCase();
+                            const shortSha = match[1].toLowerCase();
+                            // Expand abbreviated SHA to full 40-character SHA
+                            const sha = git('rev-parse', '--verify', shortSha);
 
               failure = 'Could not read the open pull request.';
               const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
@@ -93,30 +95,56 @@ jobs:
                 throw new Error('The SHA does not identify a commit.');
               }
 
-              failure = 'Merge commits are not supported: choose a non-merge commit instead (no mainline is guessed).';
-              if (git('rev-list', '--parents', '-n', '1', sha).split(' ').length > 2) {
-                throw new Error('Cannot cherry-pick a merge commit.');
-              }
-              git('config', 'user.name', 'github-actions[bot]');
-              git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
-              failure = 'Cherry-pick failed (conflict, empty/already-applied commit, or Git error). No push was attempted; resolve manually or retry with another SHA.';
-              git('cherry-pick', sha);
-              const picked = git('rev-parse', 'HEAD');
+                            // Get commit details for the status message
+                            const commitAuthor = git('log', '-1', '--format=%an <%ae>', sha);
+                            const commitMessage = git('log', '-1', '--format=%B', sha).trim();
+                            const commitShortSha = git('rev-parse', '--short', sha);
 
-              failure = 'The PR closed or its head changed while processing. No push was attempted; retry if appropriate.';
-              const { data: current } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
-              if (current.state !== 'open' || current.head.sha !== head ||
-                  current.head.ref !== pr.head.ref || current.head.repo?.full_name !== pr.head.repo.full_name) {
-                throw new Error('Pull request changed.');
-              }
-              failure = 'Push failed (branch protection, concurrent update, or Git/transport error). No force-push was attempted. Check the branch and workflow log before retrying.';
-              git('push', 'origin', `HEAD:refs/heads/${pr.head.ref}`);
-              message = `Cherry-picked \`${sha}\` onto this PR as [\`${picked}\`](${context.serverUrl}/${repo.owner}/${repo.repo}/commit/${picked}).`;
+                            failure = 'Merge commits are not supported: choose a non-merge commit instead (no mainline is guessed).';
+                            if (git('rev-list', '--parents', '-n', '1', sha).split(' ').length > 2) {
+                              throw new Error('Cannot cherry-pick a merge commit.');
+                            }
+                            git('config', 'user.name', 'github-actions[bot]');
+                            git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
+                            failure = 'Cherry-pick failed (conflict, empty/already-applied commit, or Git error). No push was attempted; resolve manually or retry with another SHA.';
+                            git('cherry-pick', sha);
+                            const picked = git('rev-parse', 'HEAD');
+                            const pickedShort = git('rev-parse', '--short', picked);
+
+                            failure = 'The PR closed or its head changed while processing. No push was attempted; retry if appropriate.';
+                            const { data: current } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
+                            if (current.state !== 'open' || current.head.sha !== head ||
+                                current.head.ref !== pr.head.ref || current.head.repo?.full_name !== pr.head.repo.full_name) {
+                              throw new Error('Pull request changed.');
+                            }
+                            failure = 'Push failed (branch protection, concurrent update, or Git/transport error). No force-push was attempted. Check the branch and workflow log before retrying.';
+                            git('push', 'origin', `HEAD:refs/heads/${pr.head.ref}`);
+                            message = `✅ **Cherry-pick successful**\n\n` +
+                              `**Original commit:** \`${commitShortSha}\` (${sha})\n` +
+                              `**Author:** ${commitAuthor}\n` +
+                              `**Message:** ${commitMessage.split('\n')[0]}\n\n` +
+                              `**Picked onto PR:** [\`${pickedShort}\`](${context.serverUrl}/${repo.owner}/${repo.repo}/commit/${picked})`;
             } catch (error) {
               core.error(error);
               core.setFailed(failure);
-              message = `Cherry-pick failed: ${failure}`;
-            } finally {
+                          // Include commit details in failure message if we have them
+                          if (typeof sha !== 'undefined' && sha) {
+                            try {
+                              const commitAuthor = git('log', '-1', '--format=%an <%ae>', sha);
+                              const commitMessage = git('log', '-1', '--format=%B', sha).trim();
+                              const commitShortSha = git('rev-parse', '--short', sha);
+                              message = `❌ **Cherry-pick failed**\n\n` +
+                                `**Commit:** \`${commitShortSha}\` (${sha})\n` +
+                                `**Author:** ${commitAuthor}\n` +
+                                `**Message:** ${commitMessage.split('\n')[0]}\n\n` +
+                                `**Error:** ${failure}`;
+                            } catch {
+                              message = `❌ **Cherry-pick failed**: ${failure}`;
+                            }
+                          } else {
+                            message = `❌ **Cherry-pick failed**: ${failure}`;
+                          }
+                        } finally {
               if (directory) rmSync(directory, { recursive: true, force: true });
             }
 
