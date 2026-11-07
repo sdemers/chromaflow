@@ -1,0 +1,127 @@
+name: Cherry-pick commit from comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: cherry-pick-comment-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  cherry-pick:
+    if: github.event.issue.pull_request && startsWith(github.event.comment.body, '/cherry-pick')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout or local actions: the PR and picked commit are untrusted.
+      - name: Cherry-pick and report result
+        uses: actions/github-script@v8
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process');
+            const { mkdtempSync, mkdirSync, rmSync } = require('node:fs');
+            const { tmpdir } = require('node:os');
+            const { join } = require('node:path');
+            const repo = context.repo;
+            const issue_number = context.issue.number;
+            const runUrl = `${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
+            let directory;
+            let failure = 'Could not verify repository permission.';
+            let message;
+
+            try {
+              const { data: access } = await github.rest.repos.getCollaboratorPermissionLevel({
+                ...repo, username: context.payload.comment.user.login
+              });
+              failure = 'Repository write, maintain, or admin permission is required.';
+              if (!['write', 'maintain', 'admin'].includes(access.permission)) {
+                throw new Error('Repository write, maintain, or admin permission is required.');
+              }
+
+              failure = 'Use `/cherry-pick <full 40-character commit SHA>` with exactly one SHA and no other text.';
+              const match = /^\/cherry-pick[ \t]+([a-fA-F0-9]{40})[ \t\r\n]*$/.exec(context.payload.comment.body);
+              if (!match) throw new Error('Invalid command.');
+              const sha = match[1].toLowerCase();
+
+              failure = 'Could not read the open pull request.';
+              const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
+              failure = 'The pull request must still be open.';
+              if (pr.state !== 'open') throw new Error('Pull request is closed.');
+              failure = 'Fork pull requests are not supported with this repository GITHUB_TOKEN. Cherry-pick manually in the fork.';
+              if (pr.head.repo?.full_name !== `${repo.owner}/${repo.repo}`) {
+                throw new Error('The head branch is not in this repository.');
+              }
+
+              directory = mkdtempSync(join(tmpdir(), 'pr-cherry-pick-'));
+              const worktree = join(directory, 'worktree');
+              mkdirSync(worktree);
+              const authorization = Buffer.from(`x-access-token:${process.env.GH_TOKEN}`).toString('base64');
+              core.setSecret(authorization);
+              // Keep credentials, global config, and hooks outside the PR-controlled worktree.
+              const env = {
+                ...process.env,
+                GIT_TERMINAL_PROMPT: '0',
+                GIT_CONFIG_NOSYSTEM: '1',
+                GIT_CONFIG_GLOBAL: join(directory, 'no-global-config'),
+                GIT_CONFIG_COUNT: '1',
+                GIT_CONFIG_KEY_0: `http.${context.serverUrl}/.extraheader`,
+                GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${authorization}`
+              };
+              const git = (...args) => execFileSync('git', [
+                '-c', `core.hooksPath=${join(directory, 'no-hooks')}`,
+                '-c', 'commit.gpgsign=false',
+                ...args
+              ], { cwd: worktree, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+              failure = 'Could not fetch the PR branch or requested commit. The SHA must be fetchable from this repository.';
+              git('init', '--quiet');
+              git('remote', 'add', 'origin', `${context.serverUrl}/${repo.owner}/${repo.repo}.git`);
+              git('fetch', '--no-tags', 'origin', `refs/heads/${pr.head.ref}`);
+              const head = git('rev-parse', 'FETCH_HEAD');
+              if (head !== pr.head.sha) throw new Error('The PR branch changed while fetching; retry the command.');
+              git('checkout', '--quiet', '--detach', head);
+              git('fetch', '--no-tags', 'origin', sha);
+              if (git('rev-parse', 'FETCH_HEAD') !== sha || git('cat-file', '-t', sha) !== 'commit') {
+                throw new Error('The SHA does not identify a commit.');
+              }
+
+              failure = 'Merge commits are not supported: choose a non-merge commit instead (no mainline is guessed).';
+              if (git('rev-list', '--parents', '-n', '1', sha).split(' ').length > 2) {
+                throw new Error('Cannot cherry-pick a merge commit.');
+              }
+              git('config', 'user.name', 'github-actions[bot]');
+              git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
+              failure = 'Cherry-pick failed (conflict, empty/already-applied commit, or Git error). No push was attempted; resolve manually or retry with another SHA.';
+              git('cherry-pick', sha);
+              const picked = git('rev-parse', 'HEAD');
+
+              failure = 'The PR closed or its head changed while processing. No push was attempted; retry if appropriate.';
+              const { data: current } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
+              if (current.state !== 'open' || current.head.sha !== head ||
+                  current.head.ref !== pr.head.ref || current.head.repo?.full_name !== pr.head.repo.full_name) {
+                throw new Error('Pull request changed.');
+              }
+              failure = 'Push failed (branch protection, concurrent update, or Git/transport error). No force-push was attempted. Check the branch and workflow log before retrying.';
+              git('push', 'origin', `HEAD:refs/heads/${pr.head.ref}`);
+              message = `Cherry-picked \`${sha}\` onto this PR as [\`${picked}\`](${context.serverUrl}/${repo.owner}/${repo.repo}/commit/${picked}).`;
+            } catch (error) {
+              core.error(error);
+              core.setFailed(failure);
+              message = `Cherry-pick failed: ${failure}`;
+            } finally {
+              if (directory) rmSync(directory, { recursive: true, force: true });
+            }
+
+            // Report separately so a comment API failure cannot be mistaken for a failed push.
+            await github.rest.issues.createComment({
+              ...repo, issue_number, body: `${message}\n\n[Workflow run](${runUrl})`
+            });
+
