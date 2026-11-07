@@ -38,6 +38,10 @@ jobs:
             let message;
             let worktree;
             let env;
+            let sha;
+
+            const commentBody = context.payload.comment.body;
+            core.info(`Received comment body (JSON): ${JSON.stringify(commentBody)}`);
 
             // Define git function outside try block so it's accessible in catch block
             const git = (...args) => execFileSync('git', [
@@ -55,12 +59,28 @@ jobs:
                 throw new Error('Repository write, maintain, or admin permission is required.');
               }
 
-              failure = 'Use `/cherry-pick <commit SHA>` (minimum 7 characters) with exactly one SHA and no other text.';
-              const match = /^\/cherry-pick[ \t]+([a-fA-F0-9]{7,40})[ \t\r\n]*$/.exec(context.payload.comment.body);
+              failure = 'Use `/cherry-pick <commit SHA>` (minimum 7 characters) with exactly one SHA or matching Markdown commit link from this repository and no other text.';
+              const match = /^\/cherry-pick[ \t]+(?:([a-fA-F0-9]{7,40})|\[([a-fA-F0-9]{7,40})\]\((https?:\/\/[^\s)]+)\))[ \t\r\n]*$/.exec(commentBody);
               if (!match) throw new Error('Invalid command.');
-              const shortSha = match[1].toLowerCase();
-              // Expand abbreviated SHA to full 40-character SHA
-              const sha = git('rev-parse', '--verify', shortSha);
+              let requestedSha = (match[1] || match[2]).toLowerCase();
+              if (match[3]) {
+                const commitUrl = new URL(match[3]);
+                const linkedSha = commitUrl.pathname.split('/').at(-1).toLowerCase();
+                if (!/^[a-f0-9]{40}$/.test(linkedSha) || !linkedSha.startsWith(requestedSha) ||
+                    commitUrl.href !== `${context.serverUrl}/${repo.owner}/${repo.repo}/commit/${linkedSha}`) {
+                  throw new Error('Commit link must match the SHA and this repository.');
+                }
+                requestedSha = linkedSha;
+              }
+              core.info(`Parsed commit SHA: ${requestedSha}`);
+
+              failure = 'Could not resolve the requested SHA to a commit in this repository. Check that it exists and is unambiguous.';
+              const { data: commit } = await github.rest.repos.getCommit({ ...repo, ref: requestedSha });
+              sha = commit.sha.toLowerCase();
+              if (!/^[a-f0-9]{40}$/.test(sha) || !sha.startsWith(requestedSha)) {
+                throw new Error('Resolved commit does not match the requested SHA.');
+              }
+              core.info(`Resolved commit SHA: ${sha}`);
 
               failure = 'Could not read the open pull request.';
               const { data: pr } = await github.rest.pulls.get({ ...repo, pull_number: issue_number });
@@ -132,7 +152,7 @@ jobs:
               core.error(error);
               core.setFailed(failure);
               // Include commit details in failure message if we have them
-              if (typeof sha !== 'undefined' && sha) {
+              if (sha && worktree) {
                 try {
                   const commitAuthor = git('log', '-1', '--format=%an <%ae>', sha);
                   const commitMessage = git('log', '-1', '--format=%B', sha).trim();
