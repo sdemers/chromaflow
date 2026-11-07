@@ -263,7 +263,9 @@
   <section class="layout">
     <div class="left">
       <Instructions bind:element={headerEl} />
-
+      <div>
+        <label>Allo</label>
+      </div>
       <GameBoard
         {grid}
         {colors}
