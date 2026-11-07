@@ -20,8 +20,7 @@ jobs:
     timeout-minutes: 10
     steps:
       # No checkout or local actions: the PR and picked commit are untrusted.
-      - name: Cherry-pick commit
-        id: cherry_pick
+      - name: Cherry-pick and report result
         uses: actions/github-script@v8
         env:
           GH_TOKEN: ${{ github.token }}
@@ -170,32 +169,23 @@ jobs:
                 message = `❌ **Cherry-pick failed**: ${failure}`;
               }
             } finally {
-              core.setOutput('result', `${message || `Cherry-pick did not complete. Check the workflow log before retrying.`}\n\n[Workflow run](${runUrl})`);
-              if (directory) rmSync(directory, { recursive: true, force: true });
+              try {
+                if (directory) rmSync(directory, { recursive: true, force: true });
+              } catch (error) {
+                core.warning(`Could not clean up the temporary worktree: ${error.message}`);
+              }
             }
 
-      - name: Post result on PR
-        if: always()
-        uses: actions/github-script@v8
-        env:
-          CHERRY_PICK_RESULT: ${{ steps.cherry_pick.outputs.result }}
-          CHERRY_PICK_OUTCOME: ${{ steps.cherry_pick.outcome }}
-        with:
-          script: |
-            const repo = context.repo;
-            const issue_number = context.issue.number;
-            const runUrl = `${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}`;
-            const body = process.env.CHERRY_PICK_RESULT ||
-              `Cherry-pick step ended with status: ${process.env.CHERRY_PICK_OUTCOME}. Check the workflow log before retrying.\n\n[Workflow run](${runUrl})`;
+            message = `${message || 'Cherry-pick did not complete. Check the workflow log before retrying.'}\n\n[Workflow run](${runUrl})`;
 
             try {
               const { data: comment } = await github.rest.issues.createComment({
-                ...repo, issue_number, body
+                ...repo, issue_number, body: message
               });
               core.info(`Posted result on PR #${issue_number}: ${comment.html_url}`);
             } catch (error) {
               core.setFailed(`Could not post result on PR #${issue_number} (HTTP ${error.status || 'unknown'}): ${error.message}. Check GITHUB_TOKEN permissions and repository policies. The cherry-pick may already have succeeded; check the branch before retrying.`);
             } finally {
-              await core.summary.addHeading('Cherry-pick result').addRaw(body).write();
+              await core.summary.addHeading('Cherry-pick result').addRaw(message).write();
             }
 
